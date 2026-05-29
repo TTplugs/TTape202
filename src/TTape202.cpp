@@ -33,7 +33,8 @@ enum PortIndex : uint32_t {
   TWIST_TYPE,
   OUTPUT_DB,
   STEREO_WIDTH,
-  DRY_WET
+  DRY_WET,
+  TAP_SETTING
 };
 
 enum ParamIndex : uint32_t {
@@ -59,6 +60,7 @@ enum ParamIndex : uint32_t {
   P_OUTPUT_DB,
   P_STEREO_WIDTH,
   P_DRY_WET,
+  P_TAP_SETTING,
   kParamCount
 };
 
@@ -90,11 +92,12 @@ static const ParamDef kParamDefs[kParamCount] = {
     {0.0f, 0.0f, 2.0f},      // twist_type
     {0.0f, -24.0f, 12.0f},   // output_db
     {0.55f, 0.0f, 1.0f},     // stereo_width
-    {0.50f, 0.0f, 1.0f}      // dry_wet
+    {0.50f, 0.0f, 1.0f},     // dry_wet
+    {0.0f, 0.0f, 5.0f}       // tap_setting
 };
 
 static const uint8_t kDiscreteParam[kParamCount] = {
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0};
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1};
 
 // Head combinations per mode (1..12), bits 0..3 for heads 1..4.
 static const uint8_t kModeMask[12] = {
@@ -435,6 +438,9 @@ static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
     case DRY_WET:
       p->controls[P_DRY_WET] = static_cast<const float*>(data);
       break;
+    case TAP_SETTING:
+      p->controls[P_TAP_SETTING] = static_cast<const float*>(data);
+      break;
   }
 }
 
@@ -486,6 +492,7 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     const bool twist = control_switch(p->smooth[P_TWIST]) != 0;
     const int twist_type = nearest_int(p->smooth[P_TWIST_TYPE]);
     const float dry_wet = clamp(p->smooth[P_DRY_WET], 0.0f, 1.0f);
+    const int tap_setting = nearest_int(p->smooth[P_TAP_SETTING]);
 
     // At max INTENSITY, the unit should enter unstable/self-oscillation territory.
     feedback = clamp(feedback * feedback * 1.08f + feedback * 0.14f, 0.0f, 1.24f);
@@ -516,14 +523,8 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     const float min_base = 0.035f;
     const float max_base = time_long ? 2.0f : 1.0f;
     // Clockwise REPEAT RATE => faster tape => shorter echo spacing.
-    float base_time = max_base * finite_or(powf(min_base / max_base, repeat_rate), 1.0f);
-    base_time = clamp(base_time, min_base, max_base);
-
-    p->wow_phase = wrap_phase01(p->wow_phase + (0.08f + wow_amt * 0.60f) / sr);
-    p->flutter_phase = wrap_phase01(p->flutter_phase + (2.8f + wow_amt * 8.5f) / sr);
-    float wow = sinf(kTwoPi * p->wow_phase) * (0.0014f + wow_amt * 0.0090f);
-    wow += sinf(kTwoPi * p->flutter_phase) * (0.0004f + wow_amt * 0.0020f);
-    if (tape_aged) wow *= 1.75f;
+    float head1_time = max_base * finite_or(powf(min_base / max_base, repeat_rate), 1.0f);
+    head1_time = clamp(head1_time, min_base, max_base);
 
     const uint8_t mask = kModeMask[(mode < 1 ? 1 : (mode > 12 ? 12 : mode)) - 1];
     const float factors[4] = {
@@ -531,6 +532,42 @@ static void run(LV2_Handle instance, uint32_t nframes) {
         (mode == 12) ? 1.68f : 2.00f,
         (mode == 12) ? 2.52f : 3.00f,
         (mode == 12) ? 3.32f : 4.00f};
+
+    float shortest = 1000.0f;
+    float longest = 0.0f;
+    for (int h = 0; h < 4; ++h) {
+      if (!(mask & (1u << h))) continue;
+      if (factors[h] < shortest) shortest = factors[h];
+      if (factors[h] > longest) longest = factors[h];
+    }
+    if (shortest > 999.0f) shortest = 1.0f;
+    if (longest < 0.0001f) longest = 1.0f;
+
+    float tap_ref = 1.0f;   // head1
+    float note_mul = 1.0f;  // quarter
+    const int ts = tap_setting < 0 ? 0 : (tap_setting > 5 ? 5 : tap_setting);
+    if (ts == 1) {
+      note_mul = 0.75f;  // dotted eighth
+    } else if (ts == 2) {
+      tap_ref = shortest;  // short
+    } else if (ts == 3) {
+      tap_ref = shortest;
+      note_mul = 0.75f;
+    } else if (ts == 4) {
+      tap_ref = longest;  // long
+    } else if (ts == 5) {
+      tap_ref = longest;
+      note_mul = 0.75f;
+    }
+
+    float base_time = head1_time * tap_ref * note_mul;
+    base_time = clamp(base_time, min_base, max_base);
+
+    p->wow_phase = wrap_phase01(p->wow_phase + (0.08f + wow_amt * 0.60f) / sr);
+    p->flutter_phase = wrap_phase01(p->flutter_phase + (2.8f + wow_amt * 8.5f) / sr);
+    float wow = sinf(kTwoPi * p->wow_phase) * (0.0014f + wow_amt * 0.0090f);
+    wow += sinf(kTwoPi * p->flutter_phase) * (0.0004f + wow_amt * 0.0020f);
+    if (tape_aged) wow *= 1.75f;
 
     float in_l = finite_or(p->in_l[i], 0.0f);
     float in_r = finite_or(p->in_r[i], 0.0f);

@@ -54,4 +54,11 @@
       lv2:scalePoint [ rdfs:label "Normal" ; rdf:value 0 ] , [ rdfs:label "Hard" ; rdf:value 1 ] , [ rdfs:label "Natural" ; rdf:value 2 ] ] ,
     [ a lv2:InputPort, lv2:ControlPort ; lv2:index 23 ; lv2:symbol "output_db" ; lv2:name "Output dB" ; lv2:default 0.00 ; lv2:minimum -24.00 ; lv2:maximum 12.00 ] ,
     [ a lv2:InputPort, lv2:ControlPort ; lv2:index 24 ; lv2:symbol "stereo_width" ; lv2:name "Stereo Width" ; lv2:default 0.55 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
-    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 25 ; lv2:symbol "dry_wet" ; lv2:name "Dry Wet" ; lv2:default 0.50 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] .
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 25 ; lv2:symbol "dry_wet" ; lv2:name "Dry Wet" ; lv2:default 0.50 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 26 ; lv2:symbol "tap_setting" ; lv2:name "Tap Setting" ; lv2:portProperty lv2:integer, lv2:enumeration ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 5 ;
+      lv2:scalePoint [ rdfs:label "H1 Quarter" ; rdf:value 0 ] ,
+                     [ rdfs:label "H1 Dotted8" ; rdf:value 1 ] ,
+                     [ rdfs:label "Short Quarter" ; rdf:value 2 ] ,
+                     [ rdfs:label "Short Dotted8" ; rdf:value 3 ] ,
+                     [ rdfs:label "Long Quarter" ; rdf:value 4 ] ,
+                     [ rdfs:label "Long Dotted8" ; rdf:value 5 ] ] .
