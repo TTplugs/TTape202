@@ -1,0 +1,57 @@
+@prefix doap:   <http://usefulinc.com/ns/doap#> .
+@prefix foaf:   <http://xmlns.com/foaf/0.1/> .
+@prefix lv2:    <http://lv2plug.in/ns/lv2core#> .
+@prefix mod:    <http://moddevices.com/ns/mod#> .
+@prefix pprops: <http://lv2plug.in/ns/ext/port-props#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+
+<urn:asier:lv2:ttape202>
+    a lv2:Plugin, lv2:DelayPlugin ;
+    doap:name "TTape202" ;
+    doap:license "GPL-2.0-only" ;
+    doap:maintainer [ foaf:name "TTLab" ] ;
+    mod:brand "TTLab" ;
+    mod:label "TTape202" ;
+    lv2:minorVersion 0 ;
+    lv2:microVersion 1 ;
+
+    lv2:port
+    [ a lv2:InputPort, lv2:AudioPort ; lv2:index 0 ; lv2:symbol "in_l" ; lv2:name "In L" ] ,
+    [ a lv2:InputPort, lv2:AudioPort ; lv2:index 1 ; lv2:symbol "in_r" ; lv2:name "In R" ] ,
+    [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 2 ; lv2:symbol "out_l" ; lv2:name "Out L" ] ,
+    [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 3 ; lv2:symbol "out_r" ; lv2:name "Out R" ] ,
+
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 4 ; lv2:symbol "mode_selector" ; lv2:name "Mode Selector" ; lv2:portProperty lv2:integer, lv2:enumeration ; lv2:default 7 ; lv2:minimum 1 ; lv2:maximum 12 ;
+      lv2:scalePoint [ rdfs:label "Mode 1" ; rdf:value 1 ] , [ rdfs:label "Mode 2" ; rdf:value 2 ] , [ rdfs:label "Mode 3" ; rdf:value 3 ] ,
+                     [ rdfs:label "Mode 4" ; rdf:value 4 ] , [ rdfs:label "Mode 5" ; rdf:value 5 ] , [ rdfs:label "Mode 6" ; rdf:value 6 ] ,
+                     [ rdfs:label "Mode 7" ; rdf:value 7 ] , [ rdfs:label "Mode 8" ; rdf:value 8 ] , [ rdfs:label "Mode 9" ; rdf:value 9 ] ,
+                     [ rdfs:label "Mode 10" ; rdf:value 10 ] , [ rdfs:label "Mode 11" ; rdf:value 11 ] , [ rdfs:label "Mode 12" ; rdf:value 12 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 5 ; lv2:symbol "repeat_rate" ; lv2:name "Repeat Rate" ; lv2:default 0.45 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 6 ; lv2:symbol "intensity" ; lv2:name "Intensity" ; lv2:default 0.55 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 7 ; lv2:symbol "echo_vol" ; lv2:name "Echo Vol" ; lv2:default 0.62 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 8 ; lv2:symbol "reverb_vol" ; lv2:name "Reverb Vol" ; lv2:default 0.20 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 9 ; lv2:symbol "saturation" ; lv2:name "Saturation" ; lv2:default 0.20 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 10 ; lv2:symbol "wow_flutter" ; lv2:name "Wow Flutter" ; lv2:default 0.16 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 11 ; lv2:symbol "bass" ; lv2:name "Bass" ; lv2:default 0.00 ; lv2:minimum -1.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 12 ; lv2:symbol "treble" ; lv2:name "Treble" ; lv2:default 0.00 ; lv2:minimum -1.00 ; lv2:maximum 1.00 ] ,
+
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 13 ; lv2:symbol "tape_age" ; lv2:name "Tape Age (Aged)" ; lv2:portProperty lv2:integer, lv2:toggled ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 14 ; lv2:symbol "time_mode" ; lv2:name "Time Mode" ; lv2:portProperty lv2:integer, lv2:enumeration ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+      lv2:scalePoint [ rdfs:label "Normal (1s)" ; rdf:value 0 ] , [ rdfs:label "Long (2s)" ; rdf:value 1 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 15 ; lv2:symbol "reverb_type" ; lv2:name "Reverb Type" ; lv2:portProperty lv2:integer, lv2:enumeration ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 4 ;
+      lv2:scalePoint [ rdfs:label "Spring" ; rdf:value 0 ] , [ rdfs:label "Hall" ; rdf:value 1 ] , [ rdfs:label "Plate" ; rdf:value 2 ] ,
+                     [ rdfs:label "Room" ; rdf:value 3 ] , [ rdfs:label "Ambience" ; rdf:value 4 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 16 ; lv2:symbol "direct_mode" ; lv2:name "Direct Mode" ; lv2:portProperty lv2:integer, lv2:enumeration ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+      lv2:scalePoint [ rdfs:label "Analog Bypass" ; rdf:value 0 ] , [ rdfs:label "RE-201 Sim" ; rdf:value 1 ] , [ rdfs:label "RE-201 Sim SAT Always" ; rdf:value 2 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 17 ; lv2:symbol "carryover" ; lv2:name "Carryover" ; lv2:portProperty lv2:integer, lv2:toggled ; lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 1 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 18 ; lv2:symbol "kill_dry" ; lv2:name "Kill Dry" ; lv2:portProperty lv2:integer, lv2:toggled ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 19 ; lv2:symbol "input_mode" ; lv2:name "Input Mode" ; lv2:portProperty lv2:integer, lv2:enumeration ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+      lv2:scalePoint [ rdfs:label "Guitar" ; rdf:value 0 ] , [ rdfs:label "Line" ; rdf:value 1 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 20 ; lv2:symbol "warp" ; lv2:name "Warp" ; lv2:portProperty lv2:integer, lv2:toggled ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 21 ; lv2:symbol "twist" ; lv2:name "Twist" ; lv2:portProperty lv2:integer, lv2:toggled ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 22 ; lv2:symbol "twist_type" ; lv2:name "Twist Type" ; lv2:portProperty lv2:integer, lv2:enumeration ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+      lv2:scalePoint [ rdfs:label "Normal" ; rdf:value 0 ] , [ rdfs:label "Hard" ; rdf:value 1 ] , [ rdfs:label "Natural" ; rdf:value 2 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 23 ; lv2:symbol "output_db" ; lv2:name "Output dB" ; lv2:default 0.00 ; lv2:minimum -24.00 ; lv2:maximum 12.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 24 ; lv2:symbol "stereo_width" ; lv2:name "Stereo Width" ; lv2:default 0.55 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 25 ; lv2:symbol "dry_wet" ; lv2:name "Dry Wet" ; lv2:default 0.50 ; lv2:minimum 0.00 ; lv2:maximum 1.00 ] .
