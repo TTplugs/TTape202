@@ -34,7 +34,9 @@ enum PortIndex : uint32_t {
   OUTPUT_DB,
   STEREO_WIDTH,
   DRY_WET,
-  TAP_SETTING
+  TAP_SETTING,
+  REPEAT_SYNC,
+  SYNC_BPM
 };
 
 enum ParamIndex : uint32_t {
@@ -61,6 +63,8 @@ enum ParamIndex : uint32_t {
   P_STEREO_WIDTH,
   P_DRY_WET,
   P_TAP_SETTING,
+  P_REPEAT_SYNC,
+  P_SYNC_BPM,
   kParamCount
 };
 
@@ -93,11 +97,13 @@ static const ParamDef kParamDefs[kParamCount] = {
     {0.0f, -24.0f, 12.0f},   // output_db
     {0.55f, 0.0f, 1.0f},     // stereo_width
     {0.50f, 0.0f, 1.0f},     // dry_wet
-    {0.0f, 0.0f, 5.0f}       // tap_setting
+    {0.0f, 0.0f, 5.0f},      // tap_setting
+    {0.0f, 0.0f, 1.0f},      // repeat_sync
+    {120.0f, 40.0f, 300.0f}  // sync_bpm
 };
 
 static const uint8_t kDiscreteParam[kParamCount] = {
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1};
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0};
 
 // Head combinations per mode (1..12), bits 0..3 for heads 1..4.
 static const uint8_t kModeMask[12] = {
@@ -114,6 +120,10 @@ static const uint8_t kModeMask[12] = {
     0xBu,  // 11: head1+head2+head4
     0xFu   // 12: head1+head2+head3+head4
 };
+
+static const float kSyncDivisionsBeats[] = {
+    4.0f, 3.0f, 2.0f, 1.5f, 1.0f, 0.75f, 0.6666667f, 0.5f, 0.375f, 0.3333333f, 0.25f, 0.1875f, 0.1666667f, 0.125f};
+static constexpr int kSyncDivisionCount = static_cast<int>(sizeof(kSyncDivisionsBeats) / sizeof(kSyncDivisionsBeats[0]));
 
 struct Plugin {
   float sr;
@@ -441,6 +451,12 @@ static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
     case TAP_SETTING:
       p->controls[P_TAP_SETTING] = static_cast<const float*>(data);
       break;
+    case REPEAT_SYNC:
+      p->controls[P_REPEAT_SYNC] = static_cast<const float*>(data);
+      break;
+    case SYNC_BPM:
+      p->controls[P_SYNC_BPM] = static_cast<const float*>(data);
+      break;
   }
 }
 
@@ -493,6 +509,8 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     const int twist_type = nearest_int(p->smooth[P_TWIST_TYPE]);
     const float dry_wet = clamp(p->smooth[P_DRY_WET], 0.0f, 1.0f);
     const int tap_setting = nearest_int(p->smooth[P_TAP_SETTING]);
+    const bool repeat_sync = control_switch(p->smooth[P_REPEAT_SYNC]) != 0;
+    const float sync_bpm = clamp(p->smooth[P_SYNC_BPM], 40.0f, 300.0f);
 
     // At max INTENSITY, the unit should enter unstable/self-oscillation territory.
     feedback = clamp(feedback * feedback * 1.08f + feedback * 0.14f, 0.0f, 1.24f);
@@ -522,9 +540,6 @@ static void run(LV2_Handle instance, uint32_t nframes) {
 
     const float min_base = 0.035f;
     const float max_base = time_long ? 2.0f : 1.0f;
-    // Clockwise REPEAT RATE => faster tape => shorter echo spacing.
-    float head1_time = max_base * finite_or(powf(min_base / max_base, repeat_rate), 1.0f);
-    head1_time = clamp(head1_time, min_base, max_base);
 
     const uint8_t mask = kModeMask[(mode < 1 ? 1 : (mode > 12 ? 12 : mode)) - 1];
     const float factors[4] = {
@@ -560,7 +575,20 @@ static void run(LV2_Handle instance, uint32_t nframes) {
       note_mul = 0.75f;
     }
 
-    float base_time = head1_time * tap_ref * note_mul;
+    float base_time = 0.0f;
+    if (repeat_sync) {
+      const float quarter = 60.0f / sync_bpm;
+      const float raw_index = clamp(repeat_rate, 0.0f, 1.0f) * static_cast<float>(kSyncDivisionCount - 1);
+      int div_index = nearest_int(raw_index);
+      if (div_index < 0) div_index = 0;
+      if (div_index >= kSyncDivisionCount) div_index = kSyncDivisionCount - 1;
+      const float beat_mul = kSyncDivisionsBeats[div_index];
+      base_time = quarter * beat_mul * tap_ref * note_mul;
+    } else {
+      // Clockwise REPEAT RATE => faster tape => shorter echo spacing.
+      const float head1_time = max_base * finite_or(powf(min_base / max_base, repeat_rate), 1.0f);
+      base_time = head1_time * tap_ref * note_mul;
+    }
     base_time = clamp(base_time, min_base, max_base);
 
     p->wow_phase = wrap_phase01(p->wow_phase + (0.08f + wow_amt * 0.60f) / sr);
