@@ -36,7 +36,8 @@ enum PortIndex : uint32_t {
   DRY_WET,
   TAP_SETTING,
   REPEAT_SYNC,
-  SYNC_BPM
+  SYNC_BPM,
+  WOW_FLUTTER_GLOBAL
 };
 
 enum ParamIndex : uint32_t {
@@ -65,6 +66,7 @@ enum ParamIndex : uint32_t {
   P_TAP_SETTING,
   P_REPEAT_SYNC,
   P_SYNC_BPM,
+  P_WOW_FLUTTER_GLOBAL,
   kParamCount
 };
 
@@ -99,11 +101,12 @@ static const ParamDef kParamDefs[kParamCount] = {
     {0.50f, 0.0f, 1.0f},     // dry_wet
     {0.0f, 0.0f, 5.0f},      // tap_setting
     {0.0f, 0.0f, 1.0f},      // repeat_sync
-    {120.0f, 40.0f, 300.0f}  // sync_bpm
+    {120.0f, 40.0f, 300.0f}, // sync_bpm
+    {0.0f, 0.0f, 1.0f}       // wow_flutter_global
 };
 
 static const uint8_t kDiscreteParam[kParamCount] = {
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0};
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1};
 
 // Head combinations per mode (1..12), bits 0..3 for heads 1..4.
 static const uint8_t kModeMask[12] = {
@@ -124,6 +127,18 @@ static const uint8_t kModeMask[12] = {
 static const float kSyncDivisionsBeats[] = {
     4.0f, 3.0f, 2.0f, 1.5f, 1.0f, 0.75f, 0.6666667f, 0.5f, 0.375f, 0.3333333f, 0.25f, 0.1875f, 0.1666667f, 0.125f};
 static constexpr int kSyncDivisionCount = static_cast<int>(sizeof(kSyncDivisionsBeats) / sizeof(kSyncDivisionsBeats[0]));
+static constexpr uint32_t kGlobalWowSize = 2048u;
+static constexpr uint32_t kRevComb1Size = 1559u;
+static constexpr uint32_t kRevComb2Size = 2089u;
+static constexpr uint32_t kRevComb3Size = 2713u;
+static constexpr uint32_t kRevComb4Size = 3209u;
+static constexpr uint32_t kRevAP1Size = 227u;
+static constexpr uint32_t kRevAP2Size = 571u;
+static const float kRevRoomBase[5] = {0.69f, 0.82f, 0.77f, 0.73f, 0.65f};
+static const float kRevDampFc[5] = {8800.0f, 5200.0f, 6800.0f, 7600.0f, 9800.0f};
+static const float kRevAP1Gain[5] = {0.58f, 0.70f, 0.66f, 0.63f, 0.55f};
+static const float kRevAP2Gain[5] = {0.46f, 0.57f, 0.53f, 0.49f, 0.44f};
+static const float kRevInDrive[5] = {0.86f, 0.98f, 0.92f, 0.88f, 0.80f};
 
 struct Plugin {
   float sr;
@@ -146,13 +161,44 @@ struct Plugin {
   float wow_phase;
   float flutter_phase;
   uint32_t rng;
+  float wow_global_l[kGlobalWowSize];
+  float wow_global_r[kGlobalWowSize];
+  uint32_t wow_global_pos;
 
-  float rev_a_l[4096];
-  float rev_a_r[4096];
-  float rev_b_l[6144];
-  float rev_b_r[6144];
-  uint32_t rev_a_pos;
-  uint32_t rev_b_pos;
+  float rev_c1_l[kRevComb1Size];
+  float rev_c1_r[kRevComb1Size];
+  float rev_c2_l[kRevComb2Size];
+  float rev_c2_r[kRevComb2Size];
+  float rev_c3_l[kRevComb3Size];
+  float rev_c3_r[kRevComb3Size];
+  float rev_c4_l[kRevComb4Size];
+  float rev_c4_r[kRevComb4Size];
+  float rev_ap1_l[kRevAP1Size];
+  float rev_ap1_r[kRevAP1Size];
+  float rev_ap2_l[kRevAP2Size];
+  float rev_ap2_r[kRevAP2Size];
+  uint32_t rev_c1_pos_l;
+  uint32_t rev_c1_pos_r;
+  uint32_t rev_c2_pos_l;
+  uint32_t rev_c2_pos_r;
+  uint32_t rev_c3_pos_l;
+  uint32_t rev_c3_pos_r;
+  uint32_t rev_c4_pos_l;
+  uint32_t rev_c4_pos_r;
+  uint32_t rev_ap1_pos_l;
+  uint32_t rev_ap1_pos_r;
+  uint32_t rev_ap2_pos_l;
+  uint32_t rev_ap2_pos_r;
+  float rev_c1_lp_l;
+  float rev_c1_lp_r;
+  float rev_c2_lp_l;
+  float rev_c2_lp_r;
+  float rev_c3_lp_l;
+  float rev_c3_lp_r;
+  float rev_c4_lp_l;
+  float rev_c4_lp_r;
+  float rev_tone_l;
+  float rev_tone_r;
 };
 
 static constexpr float kPi = 3.14159265358979323846f;
@@ -284,6 +330,30 @@ static float preamp_color(Plugin* p, float x, float sat, bool aged, bool left) {
   return finite_or(soft_clip(*lp * pregain) / (1.0f + sat * 0.55f), 0.0f);
 }
 
+static float one_pole_alpha_hz(float fc, float sr) {
+  fc = clamp(fc, 20.0f, sr * 0.45f);
+  return clamp(1.0f - finite_or(expf(-2.0f * kPi * fc / sr), 0.0f), 0.00001f, 0.99f);
+}
+
+static float comb_tick(float* buf, uint32_t size, uint32_t* pos, float* lp_state, float input, float fb, float damp_a) {
+  const uint32_t idx = *pos;
+  const float y = buf[idx];
+  *lp_state += (y - *lp_state) * damp_a;
+  const float w = clamp(input + (*lp_state) * fb, -4.0f, 4.0f);
+  buf[idx] = zap(w);
+  *pos = (idx + 1u < size) ? idx + 1u : 0u;
+  return y;
+}
+
+static float allpass_tick(float* buf, uint32_t size, uint32_t* pos, float input, float g) {
+  const uint32_t idx = *pos;
+  const float z = buf[idx];
+  const float y = z - g * input;
+  buf[idx] = zap(clamp(input + g * y, -4.0f, 4.0f));
+  *pos = (idx + 1u < size) ? idx + 1u : 0u;
+  return y;
+}
+
 static float process_reverb(Plugin* p, float x, int type, float amount, bool left) {
   amount = clamp(amount, 0.0f, 1.0f);
   if (amount <= 0.00001f) return 0.0f;
@@ -291,24 +361,42 @@ static float process_reverb(Plugin* p, float x, int type, float amount, bool lef
   type = type < 0 ? 0 : (type > 4 ? 4 : type);
   x = finite_or(x, 0.0f);
 
-  const float damp = 0.62f + static_cast<float>(type) * 0.07f;
-  const float fb_a = 0.70f + amount * 0.18f;
-  const float fb_b = 0.66f + amount * 0.20f;
+  const float room = clamp(kRevRoomBase[type] + amount * 0.10f, 0.55f, 0.93f);
+  const float damp_a = one_pole_alpha_hz(kRevDampFc[type] * (1.0f - amount * 0.28f), sample_rate(p));
+  const float input = x * kRevInDrive[type] * (0.55f + amount * 0.65f);
 
-  float* a_buf = left ? p->rev_a_l : p->rev_a_r;
-  float* b_buf = left ? p->rev_b_l : p->rev_b_r;
-  const uint32_t a_pos = p->rev_a_pos;
-  const uint32_t b_pos = p->rev_b_pos;
+  float* c1_buf = left ? p->rev_c1_l : p->rev_c1_r;
+  float* c2_buf = left ? p->rev_c2_l : p->rev_c2_r;
+  float* c3_buf = left ? p->rev_c3_l : p->rev_c3_r;
+  float* c4_buf = left ? p->rev_c4_l : p->rev_c4_r;
+  float* ap1_buf = left ? p->rev_ap1_l : p->rev_ap1_r;
+  float* ap2_buf = left ? p->rev_ap2_l : p->rev_ap2_r;
+  uint32_t* c1_pos = left ? &p->rev_c1_pos_l : &p->rev_c1_pos_r;
+  uint32_t* c2_pos = left ? &p->rev_c2_pos_l : &p->rev_c2_pos_r;
+  uint32_t* c3_pos = left ? &p->rev_c3_pos_l : &p->rev_c3_pos_r;
+  uint32_t* c4_pos = left ? &p->rev_c4_pos_l : &p->rev_c4_pos_r;
+  uint32_t* ap1_pos = left ? &p->rev_ap1_pos_l : &p->rev_ap1_pos_r;
+  uint32_t* ap2_pos = left ? &p->rev_ap2_pos_l : &p->rev_ap2_pos_r;
 
-  const float a = a_buf[a_pos];
-  const float b = b_buf[b_pos];
-  const float in = x + (a + b) * 0.15f;
+  float* c1_lp = left ? &p->rev_c1_lp_l : &p->rev_c1_lp_r;
+  float* c2_lp = left ? &p->rev_c2_lp_l : &p->rev_c2_lp_r;
+  float* c3_lp = left ? &p->rev_c3_lp_l : &p->rev_c3_lp_r;
+  float* c4_lp = left ? &p->rev_c4_lp_l : &p->rev_c4_lp_r;
+  float* tone = left ? &p->rev_tone_l : &p->rev_tone_r;
 
-  a_buf[a_pos] = zap(clamp(in + a * fb_a, -4.0f, 4.0f));
-  b_buf[b_pos] = zap(clamp(in * 0.8f + b * fb_b, -4.0f, 4.0f));
+  float c1 = comb_tick(c1_buf, kRevComb1Size, c1_pos, c1_lp, input, room * 0.996f, damp_a);
+  float c2 = comb_tick(c2_buf, kRevComb2Size, c2_pos, c2_lp, input, room * 0.973f, damp_a);
+  float c3 = comb_tick(c3_buf, kRevComb3Size, c3_pos, c3_lp, input, room * 0.951f, damp_a);
+  float c4 = comb_tick(c4_buf, kRevComb4Size, c4_pos, c4_lp, input, room * 0.929f, damp_a);
 
-  float y = (a + b) * 0.5f;
-  y = y * damp + x * (1.0f - damp) * 0.25f;
+  float y = (c1 + c2 + c3 + c4) * 0.25f;
+  y = allpass_tick(ap1_buf, kRevAP1Size, ap1_pos, y, kRevAP1Gain[type]);
+  y = allpass_tick(ap2_buf, kRevAP2Size, ap2_pos, y, kRevAP2Gain[type]);
+
+  const float tone_a = one_pole_alpha_hz(kRevDampFc[type] * 0.75f, sample_rate(p));
+  *tone += (y - *tone) * tone_a;
+  y = *tone;
+
   return finite_or(y * amount, 0.0f);
 }
 
@@ -331,16 +419,47 @@ static void reset_dsp_state(Plugin* p) {
   p->dry_lp_r = 0.0f;
   p->wow_phase = 0.0f;
   p->flutter_phase = 0.0f;
+  p->wow_global_pos = 0u;
   p->rng = 0x54545032u;
-  p->rev_a_pos = 0u;
-  p->rev_b_pos = 0u;
+  p->rev_c1_pos_l = 0u;
+  p->rev_c1_pos_r = 0u;
+  p->rev_c2_pos_l = 0u;
+  p->rev_c2_pos_r = 0u;
+  p->rev_c3_pos_l = 0u;
+  p->rev_c3_pos_r = 0u;
+  p->rev_c4_pos_l = 0u;
+  p->rev_c4_pos_r = 0u;
+  p->rev_ap1_pos_l = 0u;
+  p->rev_ap1_pos_r = 0u;
+  p->rev_ap2_pos_l = 0u;
+  p->rev_ap2_pos_r = 0u;
+  p->rev_c1_lp_l = 0.0f;
+  p->rev_c1_lp_r = 0.0f;
+  p->rev_c2_lp_l = 0.0f;
+  p->rev_c2_lp_r = 0.0f;
+  p->rev_c3_lp_l = 0.0f;
+  p->rev_c3_lp_r = 0.0f;
+  p->rev_c4_lp_l = 0.0f;
+  p->rev_c4_lp_r = 0.0f;
+  p->rev_tone_l = 0.0f;
+  p->rev_tone_r = 0.0f;
 
   if (p->delay_l && p->delay_size > 0u) memset(p->delay_l, 0, sizeof(float) * p->delay_size);
   if (p->delay_r && p->delay_size > 0u) memset(p->delay_r, 0, sizeof(float) * p->delay_size);
-  memset(p->rev_a_l, 0, sizeof(p->rev_a_l));
-  memset(p->rev_a_r, 0, sizeof(p->rev_a_r));
-  memset(p->rev_b_l, 0, sizeof(p->rev_b_l));
-  memset(p->rev_b_r, 0, sizeof(p->rev_b_r));
+  memset(p->wow_global_l, 0, sizeof(p->wow_global_l));
+  memset(p->wow_global_r, 0, sizeof(p->wow_global_r));
+  memset(p->rev_c1_l, 0, sizeof(p->rev_c1_l));
+  memset(p->rev_c1_r, 0, sizeof(p->rev_c1_r));
+  memset(p->rev_c2_l, 0, sizeof(p->rev_c2_l));
+  memset(p->rev_c2_r, 0, sizeof(p->rev_c2_r));
+  memset(p->rev_c3_l, 0, sizeof(p->rev_c3_l));
+  memset(p->rev_c3_r, 0, sizeof(p->rev_c3_r));
+  memset(p->rev_c4_l, 0, sizeof(p->rev_c4_l));
+  memset(p->rev_c4_r, 0, sizeof(p->rev_c4_r));
+  memset(p->rev_ap1_l, 0, sizeof(p->rev_ap1_l));
+  memset(p->rev_ap1_r, 0, sizeof(p->rev_ap1_r));
+  memset(p->rev_ap2_l, 0, sizeof(p->rev_ap2_l));
+  memset(p->rev_ap2_r, 0, sizeof(p->rev_ap2_r));
 }
 
 static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV2_Feature* const*) {
@@ -457,6 +576,9 @@ static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
     case SYNC_BPM:
       p->controls[P_SYNC_BPM] = static_cast<const float*>(data);
       break;
+    case WOW_FLUTTER_GLOBAL:
+      p->controls[P_WOW_FLUTTER_GLOBAL] = static_cast<const float*>(data);
+      break;
   }
 }
 
@@ -511,6 +633,7 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     const int tap_setting = nearest_int(p->smooth[P_TAP_SETTING]);
     const bool repeat_sync = control_switch(p->smooth[P_REPEAT_SYNC]) != 0;
     const float sync_bpm = clamp(p->smooth[P_SYNC_BPM], 40.0f, 300.0f);
+    const bool wow_flutter_global = control_switch(p->smooth[P_WOW_FLUTTER_GLOBAL]) != 0;
 
     // At max INTENSITY, the unit should enter unstable/self-oscillation territory.
     feedback = clamp(feedback * feedback * 1.08f + feedback * 0.14f, 0.0f, 1.24f);
@@ -596,12 +719,27 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     float wow = sinf(kTwoPi * p->wow_phase) * (0.0014f + wow_amt * 0.0090f);
     wow += sinf(kTwoPi * p->flutter_phase) * (0.0004f + wow_amt * 0.0020f);
     if (tape_aged) wow *= 1.75f;
+    const float wow_for_echo = wow_flutter_global ? 0.0f : wow;
 
     float in_l = finite_or(p->in_l[i], 0.0f);
     float in_r = finite_or(p->in_r[i], 0.0f);
     const float in_trim = line_in ? 1.0f : 0.78f;
     in_l *= in_trim;
     in_r *= in_trim;
+
+    // Optional global wow/flutter mode: modulate full signal path instead of echoes only.
+    const uint32_t wow_pos = p->wow_global_pos;
+    p->wow_global_l[wow_pos] = in_l;
+    p->wow_global_r[wow_pos] = in_r;
+    if (wow_flutter_global) {
+      const float center = 96.0f;
+      const float mod_samp = wow * sr * 0.85f;
+      const float d_l = clamp(center + mod_samp, 1.0f, static_cast<float>(kGlobalWowSize - 2u));
+      const float d_r = clamp(center + mod_samp * 1.07f, 1.0f, static_cast<float>(kGlobalWowSize - 2u));
+      in_l = read_delay(p->wow_global_l, kGlobalWowSize, wow_pos, d_l);
+      in_r = read_delay(p->wow_global_r, kGlobalWowSize, wow_pos, d_r);
+    }
+    p->wow_global_pos = (wow_pos + 1u < kGlobalWowSize) ? wow_pos + 1u : 0u;
 
     float dry_l = in_l;
     float dry_r = in_r;
@@ -617,7 +755,7 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     for (int h = 0; h < 4; ++h) {
       if (!(mask & (1u << h))) continue;
       float d = base_time * factors[h] * sr;
-      d += wow * sr * (0.5f + 0.25f * static_cast<float>(h));
+      d += wow_for_echo * sr * (0.5f + 0.25f * static_cast<float>(h));
       d = clamp(d, 1.0f, static_cast<float>(p->delay_size - 2u));
       taps_l += read_delay(p->delay_l, p->delay_size, p->write_pos, d);
       taps_r += read_delay(p->delay_r, p->delay_size, p->write_pos, d);
@@ -654,8 +792,6 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     p->delay_r[p->write_pos] = zap(write_r * decay);
 
     p->write_pos = (p->write_pos + 1u < p->delay_size) ? p->write_pos + 1u : 0u;
-    p->rev_a_pos = (p->rev_a_pos + 1u < 4096u) ? p->rev_a_pos + 1u : 0u;
-    p->rev_b_pos = (p->rev_b_pos + 1u < 6144u) ? p->rev_b_pos + 1u : 0u;
 
     const float wet_bus_l = wet_l * echo_vol + rv_l;
     const float wet_bus_r = wet_r * echo_vol + rv_r;

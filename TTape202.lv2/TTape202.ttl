@@ -63,4 +63,5 @@
                      [ rdfs:label "Long Quarter" ; rdf:value 4 ] ,
                      [ rdfs:label "Long Dotted8" ; rdf:value 5 ] ] ,
     [ a lv2:InputPort, lv2:ControlPort ; lv2:index 27 ; lv2:symbol "repeat_sync" ; lv2:name "Repeat Sync" ; lv2:portProperty lv2:integer, lv2:toggled ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ,
-    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 28 ; lv2:symbol "sync_bpm" ; lv2:name "Sync BPM" ; lv2:default 120.00 ; lv2:minimum 40.00 ; lv2:maximum 300.00 ] .
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 28 ; lv2:symbol "sync_bpm" ; lv2:name "Sync BPM" ; lv2:default 120.00 ; lv2:minimum 40.00 ; lv2:maximum 300.00 ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 29 ; lv2:symbol "wow_flutter_global" ; lv2:name "Wow Flutter Global" ; lv2:portProperty lv2:integer, lv2:toggled ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] .

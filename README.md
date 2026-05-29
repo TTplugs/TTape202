@@ -11,7 +11,7 @@ It is not a firmware clone and does not use proprietary presets, branding, or pa
 - Stereo audio input and stereo audio output
 - No GUI
 - ARM64-first target for S2400 workflows
-- 25 control ports (`index 4..28`)
+- 26 control ports (`index 4..29`)
 - Internal parameter quantization to `0.01` for smoother editing behavior
 
 ## Build on Ubuntu ARM64
@@ -83,6 +83,7 @@ scp -r TTape202.lv2 root@[IP]:'/mnt/user/Musica/Desarrollo LV2/'
 - `26` `tap_setting`
 - `27` `repeat_sync`
 - `28` `sync_bpm`
+- `29` `wow_flutter_global`
 
 ## Multi-Head Modes
 
@@ -107,6 +108,7 @@ Mode mapping follows the RE-202 reference table (heads 1..4):
 - `tap_setting`: H1/SHORT/LONG as tap reference with quarter or dotted eighth
 - `repeat_sync`: OFF = repeat rate continuo, ON = repeat rate cuantizado a divisiones musicales
 - `sync_bpm`: BPM usado por el modo sync cuando `repeat_sync=1`
+- `wow_flutter_global`: OFF = wow/flutter solo en ecos, ON = wow/flutter en toda la señal interna
 - `reverb_type`: Spring / Hall / Plate / Room / Ambience
 - `direct_mode`: Analog Bypass / RE-201 Simulation / RE-201 Simulation (SAT always style)
 - `carryover`: preserves or mutes tails when effect state changes
